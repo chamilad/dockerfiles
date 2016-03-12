@@ -21,9 +21,7 @@ MAINTAINER dev@wso2.org
 
 ENV DEBIAN_FRONTEND noninteractive
 
+COPY scripts/entrypoint.sh /usr/local/bin/init.sh
+
 RUN addgroup wso2 \
-    && adduser --system --shell /bin/bash --gecos 'WSO2User' --ingroup wso2 --disabled-login wso2user \
-    && apt-get -y update \
-    && apt-get -y install puppet \
-    && puppet module install puppetlabs/stdlib \
-    && puppet module install 7terminals-java
+    && adduser --system --shell /bin/bash --gecos 'WSO2User' --ingroup wso2 --disabled-login wso2user

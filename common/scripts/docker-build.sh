@@ -24,15 +24,19 @@ source "${DIR}/base.sh"
 # Show usage and exit
 function showUsageAndExit() {
     echoError "Insufficient or invalid options provided!"
-    echoBold "Usage: ./build.sh -v [product-version] -i [docker-image-version] [OPTIONAL] -l [product-profile-list] [OPTIONAL] -e [product-env] "
+    echoBold "Usage: ./build.sh -v [product-version] -i [docker-image-version] [OPTIONAL] -l [product-profile-list] [OPTIONAL] -e [product-env] [OPTIONAL] -h [Puppet HTTP Server address ip:port]"
     echo "Ex: ./build.sh -v 1.9.1 -i 1.0.0 -l 'default|worker|manager'"
+    echo "Ex: ./build.sh -v 1.9.1 -i 1.0.0 -h '172.17.0.1:8000'"
     exit 1
 }
 
 function cleanup() {
     echoBold "Cleaning..."
-    rm -rf "$dockerfile_path/scripts"
-    rm -rf "$dockerfile_path/puppet"
+    if [ ! -z $httpserver_pid ]; then
+        kill -9 $httpserver_pid > /dev/null 2>&1
+    fi
+    # rm -rf "$dockerfile_path/scripts"
+    # rm -rf "$dockerfile_path/puppet"
 }
 
 function listFiles () {
@@ -78,7 +82,7 @@ function validateProfile() {
 
 verbose=false
 
-while getopts :n:v:i:e:l:d:x FLAG; do
+while getopts :n:v:i:e:l:d:h:x FLAG; do
     case $FLAG in
         n)
             product_name=$OPTARG
@@ -100,6 +104,9 @@ while getopts :n:v:i:e:l:d:x FLAG; do
             ;;
         x)
             verbose=true
+            ;;
+        h)
+            httpserver_address=$OPTARG
             ;;
         \?)
             showUsageAndExit
@@ -148,20 +155,47 @@ docker_version=$(docker version --format '{{.Server.Version}}')
 echoBold "Docker version should be equal to or later than 1.9.0 to build WSO2 Docker images. Found ${docker_version}"
 echo
 
-# Copy common files to Dockerfile context
-echoBold "Creating Dockerfile context..."
-mkdir -p "${dockerfile_path}/scripts"
-mkdir -p "${dockerfile_path}/puppet/modules"
-cp "${self_path}/entrypoint.sh" "${dockerfile_path}/scripts/init.sh"
+if [ -z "$httpserver_address" ]; then
+    # starting http Server
+    echoBold "A server address is not specified (-h)."
+    echoBold "Starting HTTP Server at ${PUPPET_HOME}..."
 
-echoBold "Copying Puppet modules to Dockerfile context..."
-cp -r "${PUPPET_HOME}/modules/wso2base" "${dockerfile_path}/puppet/modules/"
-cp -r "${PUPPET_HOME}/modules/wso2${product_name}" "${dockerfile_path}/puppet/modules/"
-cp -r "${PUPPET_HOME}/hiera.yaml" "${dockerfile_path}/puppet/"
-cp -r "${PUPPET_HOME}/hieradata" "${dockerfile_path}/puppet/"
-cp -r "${PUPPET_HOME}/manifests" "${dockerfile_path}/puppet/"
+    # check if port 8000 is already in use
+    port_uses=$(lsof -i:8000 | wc -l)
+    if [ $port_uses -gt 1 ]; then
+        echoError "Port 8000 seems to be already in use. Exiting..."
+        exit 1
+    fi
+
+    # start the server in background
+    pushd ${PUPPET_HOME}
+    python -m SimpleHTTPServer 8000 & > /dev/null 2>&1
+    httpserver_pid=$!
+    popd
+
+    # get docker bridge ip
+    httpserver_address=$(ifconfig docker | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}')
+    httpserver_address="${httpserver_address// /}"
+    if [[ $docker_bridge_ip == *"error"* ]]; then
+        echoError "Couldn't find Docker bridge IP. Exiting..."
+        cleanup
+        exit 1
+    fi
+
+    httpserver_address="${httpserver_address}:8000"
+fi
+
+# check if http server is accessible
+# echo "HTTP: Ser: ${httpserver_address}"
+# curl_response=$(curl -s -o /dev/null -w "%{http_code}" http://${httpserver_address})
+# if [[ $curl_response != "200" ]]; then
+#     echoError "Cannot reach the specified HTTP Server: ${httpserver_address}. Exiting..."
+#     cleanup
+#     exit 1
+# fi
 
 # Build image for each profile provided
+echoBold "Starting Docker builds..."
 IFS='|' read -r -a profiles_array <<< "${product_profiles}"
 for profile in "${profiles_array[@]}"
 do
@@ -182,12 +216,12 @@ do
 
         # if there is a custom init.sh script supplied specific for the profile of this product, pack
         # it to ${dockerfile_path}/scripts/
-        product_init_script_name="wso2${product_name}-${profile}-init.sh"
-        if [[ -f "${dockerfile_path}/${product_init_script_name}" ]]; then
-            pushd "${dockerfile_path}" > /dev/null
-            cp "${product_init_script_name}" scripts/
-            popd > /dev/null
-        fi
+        # product_init_script_name="wso2${product_name}-${profile}-init.sh"
+        # if [[ -f "${dockerfile_path}/scripts/${product_init_script_name}" ]]; then
+        #     pushd "${dockerfile_path}" > /dev/null
+        #     cp "${product_init_script_name}" scripts/
+        #     popd > /dev/null
+        # fi
 
         echoBold "Building docker image ${image_id}..."
 
@@ -197,6 +231,7 @@ do
             --build-arg WSO2_SERVER_VERSION="${product_version}" \
             --build-arg WSO2_SERVER_PROFILE="${profile}" \
             --build-arg WSO2_ENVIRONMENT="${product_env}" \
+            --build-arg HTTP_PUPPET_SERVER="${httpserver_address}" \
             -t "${image_id}" "${dockerfile_path}" | grep -i error && echo "Docker image ${image_id} created."
 
         } || {
