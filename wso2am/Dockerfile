@@ -24,15 +24,16 @@ ARG WSO2_SERVER
 ARG WSO2_SERVER_VERSION
 ARG WSO2_SERVER_PROFILE
 ARG WSO2_ENVIRONMENT
+ARG HTTP_PUPPET_SERVER
 
 # Carbon server information
 ENV WSO2_SERVER=${WSO2_SERVER:-wso2am} \
     WSO2_SERVER_VERSION=${WSO2_SERVER_VERSION:-1.9.1} \
     WSO2_SERVER_PROFILE=${WSO2_SERVER_PROFILE:-default} \
-    WSO2_ENVIRONMENT=${WSO2_ENVIRONMENT:-dev}
+    WSO2_ENVIRONMENT=${WSO2_ENVIRONMENT:-dev} \
+    HTTP_PUPPET_SERVER=${HTTP_PUPPET_SERVER}
 
 COPY scripts/* /usr/local/bin/
-COPY puppet/ /etc/puppet/
 
 # Export facter variables
 ENV FACTER_product_name=${WSO2_SERVER} \
@@ -43,13 +44,21 @@ ENV FACTER_product_name=${WSO2_SERVER} \
 
 # Execute puppet apply and clean after
 WORKDIR /etc/puppet
-RUN puppet apply -e "include ${WSO2_SERVER}" --hiera_config=/etc/puppet/hiera.yaml \
-    && apt-get purge -y --auto-remove puppet \
+RUN apt-get -y update \
+    && apt-get -y install puppet wget \
+    && puppet module install puppetlabs/stdlib \
+    && puppet module install 7terminals-java \
+    && wget -r --level=10 --no-parent -e robots=off --reject "index.html*" http://${HTTP_PUPPET_SERVER}/ \
+    && cp -r ${HTTP_PUPPET_SERVER}/* . \
+    && rm -rf ${HTTP_PUPPET_SERVER} \
+    && puppet apply -e "include ${WSO2_SERVER}" --hiera_config=/etc/puppet/hiera.yaml \
+    && apt-get purge -y --auto-remove puppet wget \
     && rm -rf /etc/puppet/* \
     && rm -rf /var/lib/apt/lists/* \
-    && chown wso2user:wso2 /usr/local/bin/* \
+    && chown wso2user:wso2 /usr/local/bin/init.sh \
     && chown -R wso2user:wso2 /mnt
 
+WORKDIR /mnt
 USER wso2user
 
 # Expose transport ports

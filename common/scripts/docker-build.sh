@@ -168,10 +168,11 @@ if [ -z "$httpserver_address" ]; then
     fi
 
     # start the server in background
-    pushd ${PUPPET_HOME}
+    pushd ${PUPPET_HOME} > /dev/null 2>&1
     python -m SimpleHTTPServer 8000 & > /dev/null 2>&1
     httpserver_pid=$!
-    popd
+    sleep 5
+    popd > /dev/null 2>&1
 
     # get docker bridge ip
     httpserver_address=$(ifconfig docker | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}')
@@ -186,13 +187,12 @@ if [ -z "$httpserver_address" ]; then
 fi
 
 # check if http server is accessible
-# echo "HTTP: Ser: ${httpserver_address}"
-# curl_response=$(curl -s -o /dev/null -w "%{http_code}" http://${httpserver_address})
-# if [[ $curl_response != "200" ]]; then
-#     echoError "Cannot reach the specified HTTP Server: ${httpserver_address}. Exiting..."
-#     cleanup
-#     exit 1
-# fi
+curl_response=$(curl -sI http://${httpserver_address} | head -n1 )
+if [[ ${curl_response} != *"HTTP/1.0 200 OK"* ]]; then
+    echoError "Cannot reach the specified HTTP Server: ${httpserver_address}. Exiting..."
+    cleanup
+    exit 1
+fi
 
 # Build image for each profile provided
 echoBold "Starting Docker builds..."
@@ -226,13 +226,13 @@ do
         echoBold "Building docker image ${image_id}..."
 
         {
-            ! docker build --no-cache=true \
+            docker build --no-cache=true \
             --build-arg WSO2_SERVER="wso2${product_name}" \
             --build-arg WSO2_SERVER_VERSION="${product_version}" \
             --build-arg WSO2_SERVER_PROFILE="${profile}" \
             --build-arg WSO2_ENVIRONMENT="${product_env}" \
             --build-arg HTTP_PUPPET_SERVER="${httpserver_address}" \
-            -t "${image_id}" "${dockerfile_path}" | grep -i error && echo "Docker image ${image_id} created."
+            -t "${image_id}" "${dockerfile_path}" && echo "Docker image ${image_id} created."
 
         } || {
             echoError "ERROR: Docker image ${image_id} creation failed"

@@ -33,7 +33,7 @@ ENV WSO2_SERVER=${WSO2_SERVER:-wso2cep} \
     WSO2_ENVIRONMENT=${WSO2_ENVIRONMENT:-dev} \
     HTTP_PUPPET_SERVER=${HTTP_PUPPET_SERVER}
 
-COPY scripts/* /usr/local/bin/*
+COPY scripts/* /usr/local/bin/
 
 # Export facter variables
 ENV FACTER_product_name=${WSO2_SERVER} \
@@ -59,7 +59,6 @@ RUN apt-get -y update \
     && chown -R wso2user:wso2 /mnt
 
 WORKDIR /mnt
-
 USER wso2user
 
 # Expose transport ports
