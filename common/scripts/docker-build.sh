@@ -226,13 +226,13 @@ do
         echoBold "Building docker image ${image_id}..."
 
         {
-            docker build --no-cache=true \
+            ! docker build --no-cache=true \
             --build-arg WSO2_SERVER="wso2${product_name}" \
             --build-arg WSO2_SERVER_VERSION="${product_version}" \
             --build-arg WSO2_SERVER_PROFILE="${profile}" \
             --build-arg WSO2_ENVIRONMENT="${product_env}" \
             --build-arg HTTP_PUPPET_SERVER="${httpserver_address}" \
-            -t "${image_id}" "${dockerfile_path}" && echo "Docker image ${image_id} created."
+            -t "${image_id}" "${dockerfile_path}" | grep -i error && echo "Docker image ${image_id} created."
 
         } || {
             echoError "ERROR: Docker image ${image_id} creation failed"
