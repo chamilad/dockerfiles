@@ -16,7 +16,7 @@
 
 # ------------------------------------------------------------------------
 
-FROM ubuntu:latest
+FROM frolvlad/alpine-oraclejdk8
 MAINTAINER dev@wso2.org
 
 ENV DEBIAN_FRONTEND noninteractive
@@ -38,7 +38,7 @@ ENV WSO2_SERVER=${WSO2_SERVER:-wso2am} \
 COPY scripts/*.sh /usr/local/bin/
 
 # Execute configuration script
-RUN bash /usr/local/bin/image-config.sh
+RUN sh /usr/local/bin/image-config.sh
 
 USER wso2user
 WORKDIR /mnt

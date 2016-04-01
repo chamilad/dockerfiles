@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # ------------------------------------------------------------------------
 #
 # Copyright 2016 WSO2, Inc. (http://wso2.com)
@@ -17,7 +17,8 @@
 
 # ------------------------------------------------------------------------
 set -e
-source /etc/profile.d/set_java_home.sh
+
+java -version
 
 prgdir=$(dirname "$0")
 script_path=$(cd "$prgdir"; pwd)
@@ -36,33 +37,25 @@ secret_conf_properties_file=${server_path}/${server_name}/repository/conf/securi
 password_tmp_file=${server_path}/${server_name}/password-tmp
 
 # replace localMemberHost with local ip
-function replace_local_member_host_with_ip {
-    sed -i "s/\(<parameter\ name=\"localMemberHost\">\).*\(<\/parameter*\)/\1$local_ip\2/" "${axis2_xml_file_path}"
-    if [[ $? == 0 ]];
-        then
-        echo "successfully updated localMemberHost with local ip address $local_ip"
-    else
-        echo "error occurred in updating localMemberHost with local ip address $local_ip"
-    fi
-}
+sed -i "s/\(<parameter\ name=\"localMemberHost\">\).*\(<\/parameter*\)/\1$local_ip\2/" "${axis2_xml_file_path}"
+if [[ $? == 0 ]];
+    then
+    echo "successfully updated localMemberHost with local ip address $local_ip"
+else
+    echo "error occurred in updating localMemberHost with local ip address $local_ip"
+fi
 
 # updating conf file path with server_path
-function update_path {
-    if [ -f "$secret_conf_properties_file" ]
+if [ -f "$secret_conf_properties_file" ]
+    then
+    sed -i "s|mnt|mnt/${local_ip}|g" "$secret_conf_properties_file"
+    if [[ "$?" == 0 ]];
         then
-        sed -i "s|mnt|mnt/${local_ip}|g" "$secret_conf_properties_file"
-        if [[ "$?" == 0 ]];
-            then
-            echo "Successfully updated keyStore identity location"
-        else
-            echo "Error occurred in updating keyStore identity location"
-        fi
+        echo "Successfully updated keyStore identity location"
+    else
+        echo "Error occurred in updating keyStore identity location"
     fi
-}
-
-replace_local_member_host_with_ip
-
-update_path
+fi
 
 if [ ! -z "$KEY_STORE_PASSWORD" ]
     then

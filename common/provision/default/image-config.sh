@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # ------------------------------------------------------------------------
 #
 # Copyright 2016 WSO2, Inc. (http://wso2.com)
@@ -19,32 +19,13 @@
 
 set -e
 
-jdk_install_dir=/mnt/jdk-7u80
-java_home_dir=/opt/java
-
-pushd /mnt > /dev/null
+mkdir -p /mnt > /dev/null
+cd /mnt > /dev/null
 addgroup wso2
-adduser --system --shell /bin/bash --gecos 'WSO2User' --ingroup wso2 --disabled-login wso2user
-apt-get update && apt-get install -y unzip wget
-wget -nH -r -e robots=off --reject "index.html*" -A "jdk*.tar.gz" -nv ${HTTP_PACK_SERVER}/
-wget -nH -e robots=off --reject "index.html*" -nv ${HTTP_PACK_SERVER}/${WSO2_SERVER}-${WSO2_SERVER_VERSION}.zip
-echo "unpacking ${WSO2_SERVER}-${WSO2_SERVER_VERSION}.zip to /mnt"
+adduser -S -s /bin/sh -g 'WSO2User' -G wso2 wso2user
+wget ${HTTP_PACK_SERVER}/${WSO2_SERVER}-${WSO2_SERVER_VERSION}.zip
+echo "Unpacking ${WSO2_SERVER}-${WSO2_SERVER_VERSION}.zip to /mnt"
 unzip -q /mnt/${WSO2_SERVER}-${WSO2_SERVER_VERSION}.zip -d /mnt
-mkdir -p ${jdk_install_dir}
-echo "unpacking the JDK to ${jdk_install_dir}"
-tar -xf /mnt/jdk*tar.gz -C ${jdk_install_dir} --strip-components=1
-ln -s ${jdk_install_dir} ${java_home_dir}
-echo "created symlink for java: ${java_home_dir} -> ${jdk_install_dir}"
 rm -rf /mnt/${WSO2_SERVER}-${WSO2_SERVER_VERSION}.zip
-rm -rf /mnt/jdk*tar.gz
-apt-get purge -y --auto-remove wget unzip
-rm -rfv /var/lib/apt/lists/*
 chown wso2user:wso2 /usr/local/bin/*
 chown -R wso2user:wso2 /mnt
-
-cat > /etc/profile.d/set_java_home.sh << EOF
-export JAVA_HOME="${java_home_dir}"
-export PATH="${java_home_dir}/bin:\$PATH"
-EOF
-
-popd > /dev/null
